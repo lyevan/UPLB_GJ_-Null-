@@ -1,5 +1,8 @@
 extends CharacterBody2D
 
+@export var health = 200
+@export var damage = 30
+
 # Dash config
 var dash_speed := 600.0
 var dash_duration := 0.3
@@ -14,8 +17,14 @@ var friction := 1500.0
 # Movement config
 var walk_speed := 200.0
 var run_speed := 300.0
-var jump_velocity := -400.0
 var coyote_time := 0.1
+
+# Jump mechanics
+var min_jump_velocity := -100.0  # Minimum jump height (when tapped)
+var max_jump_velocity := -300.0  # Maximum jump height (when held)
+var jump_hold_time := 0.0
+var max_jump_hold := 0.2  # Max time button can be held for full height
+var is_jump_held := false
 
 # States
 var is_dashing := false
@@ -51,10 +60,17 @@ var weapon = {
 	"bow": "bow_"
 }
 
+
+
 @onready var anim_sprite = $Sprite
+@onready var slash_collider = $Sprite/SlashCollider
+@onready var stab_collider = $Sprite/StabCollider
 
 func _ready() -> void:
 	mode = weapon.normal
+	slash_collider.monitoring = false
+	stab_collider.monitoring = false
+
 
 func _physics_process(delta: float) -> void:
 	# Handle weapon mode switching
@@ -112,12 +128,25 @@ func _physics_process(delta: float) -> void:
 		if drop_timer <= 0:
 			set_collision_mask_value(2, true)
 	
-	# Handle jumping with coyote time
+	# Handle jumping with coyote time and variable height
 	var velocity = self.velocity
-	if Input.is_action_just_pressed("ui_accept") and not is_attacking:  # Prevent jumping during attack
+	if Input.is_action_just_pressed("ui_accept") and not is_attacking:
 		if (is_on_floor_now or coyote_timer > 0) and not Input.is_action_pressed("Down"):
-			velocity.y = jump_velocity
+			# Start jump with minimum velocity
+			velocity.y = min_jump_velocity
 			coyote_timer = 0
+			is_jump_held = true
+			jump_hold_time = 0.0
+	
+		# Increase jump height while button is held
+	if is_jump_held:
+		jump_hold_time += delta
+		if Input.is_action_pressed("ui_accept") and jump_hold_time < max_jump_hold:
+			# Apply additional upward force proportional to hold time
+			velocity.y = lerp(min_jump_velocity, max_jump_velocity, jump_hold_time/max_jump_hold)
+		else:
+			# Button released or max hold time reached
+			is_jump_held = false
 	
 	# Apply gravity if not on floor
 	if not is_on_floor_now:
@@ -145,13 +174,22 @@ func _physics_process(delta: float) -> void:
 		if direction != 0:
 			velocity.x = move_toward(velocity.x, target_speed, acceleration * delta)
 		else:
-			velocity.x = move_toward(velocity.x, 0, friction * delta)
+			velocity.x = move_toward(velocity.x, 0, (friction * 3) * delta)
 	
 	self.velocity = velocity
 	move_and_slide()
 	
 	if velocity.x != 0 and not is_attacking:  # Don't flip during attack
-		anim_sprite.flip_h = velocity.x < 0
+		#anim_sprite.flip_h = velocity.x < 0
+		
+		if velocity.x < 0:
+			anim_sprite.flip_h = true
+			slash_collider.scale = Vector2(-1, 1)
+			stab_collider.scale = Vector2(-1, 1)
+		else:
+			anim_sprite.flip_h = false
+			slash_collider.scale = Vector2(1, 1)
+			stab_collider.scale = Vector2(1, 1)
 	
 	
 	# Combo timer
@@ -163,7 +201,7 @@ func _physics_process(delta: float) -> void:
 		
 	# Handle attack input
 	if mode == weapon.sword and not is_anim_locked:
-		if Input.is_action_just_pressed("Primary"):
+		if Input.is_action_just_pressed("Primary") and not Input.is_action_pressed("Run"):
 			if is_dashing:
 				end_dash()
 			start_attack("primary")
@@ -171,6 +209,10 @@ func _physics_process(delta: float) -> void:
 			if is_dashing:
 				end_dash()
 			start_attack("secondary")
+		elif Input.is_action_just_pressed("Tertiary"):
+			if is_dashing:
+				end_dash()
+			start_attack("tertiary")
 	
 	# Animation handling
 	update_animations()
@@ -192,8 +234,15 @@ func start_attack(input_type: String):
 	match attack_type:
 		"primary":
 			play_anim("slash")
+			damage_slash()
+			
 		"secondary":
+			play_anim("parry")
+			
+			
+		"tertiary":
 			play_anim("stab")
+			damage_stab()
 	
 	# Wait for animation to finish
 	await anim_sprite.animation_finished
@@ -205,6 +254,24 @@ func start_attack(input_type: String):
 	
 	# Start combo timeout
 	combo_timer = max_combo_time
+
+func damage_slash():
+	await get_tree().create_timer(0.2).timeout
+	$Sprite/SlashCollider.monitorable = true
+	$Sprite/SlashCollider.visible = true
+			
+	await get_tree().create_timer(0.1).timeout
+	$Sprite/SlashCollider.monitorable = false
+	$Sprite/SlashCollider.visible = false
+
+func damage_stab():
+	await get_tree().create_timer(0.3).timeout
+	$Sprite/StabCollider.monitorable = true
+	$Sprite/StabCollider.visible = true
+			
+	await get_tree().create_timer(0.1).timeout
+	$Sprite/StabCollider.monitorable = false
+	$Sprite/StabCollider.visible = false
 
 func get_next_attack_type(input_type: String) -> String:
 	# Record the current input
