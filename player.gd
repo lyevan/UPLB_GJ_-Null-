@@ -7,7 +7,6 @@ var double_tap_time := 0.25
 var dash_cooldown := 1.0 
 var dash_cooldown_timer := 0.0 
 
-
 # Momentum physics
 var acceleration := 2000.0
 var friction := 1500.0
@@ -27,10 +26,42 @@ var drop_timer := 0.0
 var coyote_timer := 0.0
 var was_on_floor := false
 var is_anim_locked := false
+var mode := ""
+
+# Attack state
+var is_attacking := false
+var current_attack := ""
+
+# Combo system variables
+var current_combo := []
+var combo_timer := 0.0
+var max_combo_time := 0.5  # Time between attacks to count as combo
+var combo_index := 0
+
+# Combo sequences (easily expandable)
+var combos := {
+	"slash_slash_stab": ["slash", "slash", "stab"],
+	"stab_slash": ["stab", "slash"],
+	# Add more combos here as needed
+}
+
+var weapon = {
+	"normal" : "",
+	"sword": "sword_",
+	"bow": "bow_"
+}
 
 @onready var anim_sprite = $Sprite
 
+func _ready() -> void:
+	mode = weapon.normal
+
 func _physics_process(delta: float) -> void:
+	# Handle weapon mode switching
+	if Input.is_action_just_pressed("Sword Mode") and not mode == weapon.sword:
+		mode = weapon.sword
+		print("Sword Mode")
+	
 	# Ground check and coyote time
 	var is_on_floor_now = is_on_floor()
 	if is_on_floor_now:
@@ -46,7 +77,6 @@ func _physics_process(delta: float) -> void:
 	else:
 		coyote_timer = 0
 
-	
 	# Get input direction
 	var direction := Input.get_axis("Left", "Right")
 	
@@ -54,7 +84,7 @@ func _physics_process(delta: float) -> void:
 	if direction != 0:
 		last_direction = sign(direction)
 	
-	# Double-tap dash detectionn
+	# Double-tap dash detection
 	if Input.is_action_just_pressed("Left") or Input.is_action_just_pressed("Right"):
 		var input_dir = 1 if Input.is_action_just_pressed("Right") else -1
 		
@@ -72,7 +102,6 @@ func _physics_process(delta: float) -> void:
 	else:
 		dash_cooldown_timer = 0
 
-	
 	# Drop through platform
 	if drop_timer <= 0 and Input.is_action_pressed("Down") and Input.is_action_just_pressed("ui_accept") and is_on_floor_now:
 		drop_timer = 0.2
@@ -85,11 +114,10 @@ func _physics_process(delta: float) -> void:
 	
 	# Handle jumping with coyote time
 	var velocity = self.velocity
-	if Input.is_action_just_pressed("ui_accept"):
+	if Input.is_action_just_pressed("ui_accept") and not is_attacking:  # Prevent jumping during attack
 		if (is_on_floor_now or coyote_timer > 0) and not Input.is_action_pressed("Down"):
 			velocity.y = jump_velocity
-			coyote_timer = 0  # Consume coyote time
-		
+			coyote_timer = 0
 	
 	# Apply gravity if not on floor
 	if not is_on_floor_now:
@@ -99,62 +127,131 @@ func _physics_process(delta: float) -> void:
 	if is_dashing:
 		dash_time -= delta
 		if dash_time <= 0:
-			is_dashing = false
-			is_anim_locked = false
-			velocity.x = last_direction * walk_speed  # Transition to normal speed
+			end_dash()
 	
 	# Calculate target speed based on state
 	var target_speed := 0.0
 	
-	if is_dashing:
-		velocity.x = last_direction * dash_speed
+	if is_dashing or is_attacking:  # Prevent movement during attack
+		velocity.x = last_direction * (dash_speed if is_dashing else 0)
 	else:
 		if Input.is_action_pressed("Run"):
 			target_speed = direction * run_speed
 		else:
 			target_speed = direction * walk_speed
-			
-		
-				
-				
-			
 	
-	# Apply acceleration or friction if not dashing
-	if not is_dashing:
+	# Apply acceleration or friction if not dashing or attacking
+	if not is_dashing and not is_attacking:
 		if direction != 0:
-			# Accelerate toward target speed
 			velocity.x = move_toward(velocity.x, target_speed, acceleration * delta)
 		else:
-			# Apply friction toward zero when no input
 			velocity.x = move_toward(velocity.x, 0, friction * delta)
 	
 	self.velocity = velocity
 	move_and_slide()
 	
-	if velocity.x != 0:
+	if velocity.x != 0 and not is_attacking:  # Don't flip during attack
 		anim_sprite.flip_h = velocity.x < 0
-
 	
-	# === PLAY ANIMATION BASED ON STATE ===
-# === ANIMATION SELECTION ===
-	if is_anim_locked:
-		return  # Don’t update animation while dash is active
-
-	if not is_on_floor_now:
-		if velocity.y < -20:
-			anim_sprite.play("jump_up")
-		elif abs(velocity.y) <= 20:
-			anim_sprite.play("jump_max")
-		else:
-			anim_sprite.play("fall")
-
-	elif abs(velocity.x) > 10:
-		anim_sprite.play("run" if Input.is_action_pressed("Run") else "walk")
-
+	
+	# Combo timer
+	if combo_timer > 0:
+		combo_timer -= delta
 	else:
-		anim_sprite.play("idle")
+		current_combo = []
+		combo_index = 0
+		
+	# Handle attack input
+	if mode == weapon.sword and not is_anim_locked:
+		if Input.is_action_just_pressed("Primary"):
+			if is_dashing:
+				end_dash()
+			start_attack("primary")
+		elif Input.is_action_just_pressed("Secondary"):
+			if is_dashing:
+				end_dash()
+			start_attack("secondary")
+	
+	# Animation handling
+	update_animations()
 
+func end_dash():  # NEW FUNCTION
+	is_dashing = false
+	is_anim_locked = false
+	velocity.x = last_direction * walk_speed
 
+func start_attack(input_type: String):
+	# Determine which attack to use based on current combo
+	var attack_type = get_next_attack_type(input_type)
+	current_attack = attack_type
+	
+	is_attacking = true
+	is_anim_locked = true
+	
+	# Play the appropriate animation
+	match attack_type:
+		"primary":
+			play_anim("slash")
+		"secondary":
+			play_anim("stab")
+	
+	# Wait for animation to finish
+	await anim_sprite.animation_finished
+	
+	# Reset states
+	is_attacking = false
+	is_anim_locked = false
+	update_animations()
+	
+	# Start combo timeout
+	combo_timer = max_combo_time
+
+func get_next_attack_type(input_type: String) -> String:
+	# Record the current input
+	var new_combo = current_combo.duplicate()
+	new_combo.append(input_type)
+	
+	# Check if this matches any combo sequence
+	for combo_name in combos:
+		var combo_sequence = combos[combo_name]
+		
+		# Check if our current inputs match the start of any combo
+		if new_combo.size() <= combo_sequence.size():
+			var matches = true
+			for i in range(new_combo.size()):
+				if new_combo[i] != combo_sequence[i]:
+					matches = false
+					break
+			
+			if matches:
+				# If we have a partial match, wait for more inputs
+				if new_combo.size() < combo_sequence.size():
+					current_combo = new_combo
+					return input_type  # Use the input type for next attack
+				# If we completed a combo, return the first attack of the combo
+				else:
+					current_combo = []
+					return combo_sequence[0]
+	
+	# No combo match found, use the input type
+	current_combo = []
+	return input_type
+
+func update_animations():
+	if is_anim_locked:
+		return
+	
+	if not is_on_floor():
+		if velocity.y < -20:
+			play_anim("jump_up")
+		elif abs(velocity.y) <= 20:
+			play_anim("jump_max")
+		else:
+			play_anim("fall")
+	elif abs(velocity.x) > 10:
+		play_anim("run" if Input.is_action_pressed("Run") else "walk")
+	else:
+		play_anim("idle")
 
 func start_dash(direction: int):
 	if not is_dashing and (is_on_floor() or coyote_timer > 0) and dash_cooldown_timer == 0:
@@ -162,10 +259,10 @@ func start_dash(direction: int):
 		dash_time = dash_duration
 		dash_cooldown_timer = dash_cooldown
 		last_direction = direction
-		velocity.y = 0  # Cancel any vertical velocity when dashing
+		velocity.y = 0
 		is_anim_locked = true
-		anim_sprite.play("dash")
+		play_anim("dash")
 
 func play_anim(name: String):
-	if anim_sprite.animation != name:
-		anim_sprite.play(name)
+	if anim_sprite.animation != mode + name:
+		anim_sprite.play(mode + name)
