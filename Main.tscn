@@ -47,8 +47,7 @@ position = Vector2(623, 338)
 zoom = Vector2(1.365, 1.365)
 
 [node name="StaticBody2D" type="StaticBody2D" parent="."]
-collision_layer = 3
-collision_mask = 2
+collision_layer = 2
 
 [node name="Sprite2D" type="Sprite2D" parent="StaticBody2D"]
 position = Vector2(907, 272)
@@ -61,9 +60,8 @@ shape = SubResource("RectangleShape2D_glv2v")
 one_way_collision = true
 
 [node name="StaticBody2D2" type="StaticBody2D" parent="."]
-position = Vector2(-482, -20)
-collision_layer = 3
-collision_mask = 2
+position = Vector2(-482, -21)
+collision_layer = 2
 
 [node name="Sprite2D" type="Sprite2D" parent="StaticBody2D2"]
 position = Vector2(907, 268)
@@ -77,6 +75,7 @@ one_way_collision = true
 
 [node name="StaticBody2D3" type="StaticBody2D" parent="."]
 position = Vector2(-482, 17)
+collision_layer = 2
 
 [node name="Sprite2D" type="Sprite2D" parent="StaticBody2D3"]
 position = Vector2(907, 268)
