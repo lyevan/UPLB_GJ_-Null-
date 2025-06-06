@@ -66,7 +66,7 @@ func _physics_process(delta: float) -> void:
 		drop_timer -= delta
 		if drop_timer <= 0:
 			set_collision_mask_value(1, true)
-			print("Trial")
+			
 			
 
 	# Start jump
