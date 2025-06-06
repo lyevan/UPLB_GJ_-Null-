@@ -2,7 +2,7 @@ extends CharacterBody2D
 
 # Dash config
 var dash_speed := 600.0
-var dash_duration := 0.2
+var dash_duration := 0.3
 var double_tap_time := 0.25
 var dash_cooldown := 1.0 
 var dash_cooldown_timer := 0.0 
