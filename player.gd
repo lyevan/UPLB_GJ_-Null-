@@ -1,29 +1,34 @@
 extends CharacterBody2D
 
+@export_category("Utility")
 @export var health = 200
 @export var damage = 30
 
+@export_category("Dash Config")
 # Dash config
-var dash_speed := 600.0
-var dash_duration := 0.3
-var double_tap_time := 0.25
-var dash_cooldown := 1.0 
-var dash_cooldown_timer := 0.0 
+@export var dash_speed := 600.0
+@export var dash_duration := 0.3
+@export var double_tap_time := 0.25
+@export var dash_cooldown := 1.0 
+@export var dash_cooldown_timer := 0.0 
 
+@export_category("Physics Config")
 # Momentum physics
-var acceleration := 2000.0
-var friction := 1500.0
+@export var acceleration := 2000.0
+@export var friction := 1500.0
 
+@export_category("Movement Config")
 # Movement config
-var walk_speed := 200.0
-var run_speed := 300.0
-var coyote_time := 0.1
+@export var walk_speed := 200.0
+@export var run_speed := 300.0
+@export var coyote_time := 0.1
 
+@export_category("Jump Mechanics")
 # Jump mechanics
-var min_jump_velocity := -100.0  # Minimum jump height (when tapped)
-var max_jump_velocity := -300.0  # Maximum jump height (when held)
-var jump_hold_time := 0.0
-var max_jump_hold := 0.2  # Max time button can be held for full height
+@export var min_jump_velocity := -100.0  # Minimum jump height (when tapped)
+@export var max_jump_velocity := -300.0  # Maximum jump height (when held)
+@export var jump_hold_time := 0.0
+@export var max_jump_hold := 0.2  # Max time button can be held for full height
 var is_jump_held := false
 
 # States
