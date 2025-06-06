@@ -16,7 +16,7 @@ size = Vector2(202, 4)
 [node name="Node2D" type="Node2D"]
 
 [node name="CharacterBody2D" parent="." instance=ExtResource("1_glv2v")]
-position = Vector2(603, 293)
+position = Vector2(606, 275)
 
 [node name="Area2D" type="StaticBody2D" parent="."]
 position = Vector2(591, 348)

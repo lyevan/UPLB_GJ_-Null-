@@ -26,6 +26,9 @@ var double_tap_timer := 0.0
 var drop_timer := 0.0
 var coyote_timer := 0.0
 var was_on_floor := false
+var is_anim_locked := false
+
+@onready var anim_sprite = $Sprite
 
 func _physics_process(delta: float) -> void:
 	# Ground check and coyote time
@@ -86,6 +89,7 @@ func _physics_process(delta: float) -> void:
 		if (is_on_floor_now or coyote_timer > 0) and not Input.is_action_pressed("Down"):
 			velocity.y = jump_velocity
 			coyote_timer = 0  # Consume coyote time
+		
 	
 	# Apply gravity if not on floor
 	if not is_on_floor_now:
@@ -96,10 +100,12 @@ func _physics_process(delta: float) -> void:
 		dash_time -= delta
 		if dash_time <= 0:
 			is_dashing = false
+			is_anim_locked = false
 			velocity.x = last_direction * walk_speed  # Transition to normal speed
 	
 	# Calculate target speed based on state
 	var target_speed := 0.0
+	
 	if is_dashing:
 		velocity.x = last_direction * dash_speed
 	else:
@@ -107,6 +113,11 @@ func _physics_process(delta: float) -> void:
 			target_speed = direction * run_speed
 		else:
 			target_speed = direction * walk_speed
+			
+		
+				
+				
+			
 	
 	# Apply acceleration or friction if not dashing
 	if not is_dashing:
@@ -119,6 +130,31 @@ func _physics_process(delta: float) -> void:
 	
 	self.velocity = velocity
 	move_and_slide()
+	
+	if velocity.x != 0:
+		anim_sprite.flip_h = velocity.x < 0
+
+	
+	# === PLAY ANIMATION BASED ON STATE ===
+# === ANIMATION SELECTION ===
+	if is_anim_locked:
+		return  # Don’t update animation while dash is active
+
+	if not is_on_floor_now:
+		if velocity.y < -20:
+			anim_sprite.play("jump_up")
+		elif abs(velocity.y) <= 20:
+			anim_sprite.play("jump_max")
+		else:
+			anim_sprite.play("fall")
+
+	elif abs(velocity.x) > 10:
+		anim_sprite.play("run" if Input.is_action_pressed("Run") else "walk")
+
+	else:
+		anim_sprite.play("idle")
+
+
 
 func start_dash(direction: int):
 	if not is_dashing and (is_on_floor() or coyote_timer > 0) and dash_cooldown_timer == 0:
@@ -127,3 +163,9 @@ func start_dash(direction: int):
 		dash_cooldown_timer = dash_cooldown
 		last_direction = direction
 		velocity.y = 0  # Cancel any vertical velocity when dashing
+		is_anim_locked = true
+		anim_sprite.play("dash")
+
+func play_anim(name: String):
+	if anim_sprite.animation != name:
+		anim_sprite.play(name)
